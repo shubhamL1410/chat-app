@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Simple Chat (Localhost)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="style.css" />
+    /* Styling for context menu, pinned message, emoji panel, search bar, etc. */
+  <style>
+    .context-menu {
+      position: absolute;
+      background: #fff;
+      border: 1px solid #ccc;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+      padding: 5px;
+      z-index: 9999;
+      display: none;
+    }
+    .context-menu button {
+      display: block;
+      background: none;
+      border: none;
+      width: 100%;
+      text-align: left;
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+    .context-menu button:hover {
+      background: #eee;
+    }
+    #pinned-message {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #fdf3c9;
+      padding: 10px 15px;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+      max-width: 300px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      font-size: 14px;
+      z-index: 1000;
+    }
+    .emoji-panel span {
+      font-size: 20px;
+      margin: 5px;
+      cursor: pointer;
+    }
+    .timestamp {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .seen-status {
+      font-size: 12px;
+      color: white;
+      margin-left: 10px;
+    }
+    .search-bar {
+      display: flex;
+      justify-content: end;
+      margin-bottom: 10px;
+    }
+    .search-bar input {
+      padding: 5px;
+      width: 200px;
+    }
+    .search-bar button {
+      margin-left: 5px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Chat UI layout -->
+  <div class="main-container" style="width:1280px;">
+    <div class="chat-container">
+      <h2>💬 Real Time Chat Application</h2>
+ <!-- Search bar for messages -->
+      <div class="search-bar">
+        <input type="text" id="searchInput" placeholder="Search messages...">
+        <button id="searchBtn">🔍</button>
+      </div>
+           <!-- Message list -->
+      <ul id="messages"></ul>
+      <p id="typing"></p>
+        <!-- Chat form for input -->
+      <form id="chatForm" class="chat-container">
+        <div class="input-bar">
+          <div class="input-group">
+            <button type="button" id="toggleEmoji" title="Emoji">😀</button>
+            <input id="msg" type="text" placeholder="Type a message..." autocomplete="off" required />
+            <label class="file-upload" title="Upload File">
+              📁<input type="file" id="fileInput" hidden />
+            </label>
+            <button type="button" id="recordBtn" title="Record Voice">🎤</button>
+          </div>
+          <button type="submit" title="Send">📤</button>
+          <button type="button" id="clearChat" title="Clear Chat">🧹 Clear</button>
+        </div>
+        <div id="emojiPanel" class="emoji-panel"></div>
+      </form>
+    </div>
+  </div>
+<!-- Right-click context menu -->
+  <div class="context-menu" id="contextMenu">
+    <button id="editBtn">✏️ Edit</button>
+    <button id="deleteBtn">🗑️ Delete</button>
+    <button id="pinBtn">📌 Pin</button>
+  </div>
+ <!-- Pinned message area -->
+  <div id="pinned-message" style="display: none;"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const name = prompt("Enter your name:")?.trim() || "Anonymous";
+    socket.emit("joinRoom", { name, room: "localhost" });
+    // Select important DOM elements
+    const form = document.getElementById("chatForm");
+    const input = document.getElementById("msg");
+    const messages = document.getElementById("messages");
+    const typing = document.getElementById("typing");
+    const clearButton = document.getElementById("clearChat");
+    const fileInput = document.getElementById("fileInput");
+    const emojiBtn = document.getElementById("toggleEmoji");
+    const emojiPanel = document.getElementById("emojiPanel");
+    const pinnedMessage = document.getElementById("pinned-message");
+    const contextMenu = document.getElementById("contextMenu");
+    const searchBtn = document.getElementById("searchBtn");
+    const searchInput = document.getElementById("searchInput");
+    const recordBtn = document.getElementById("recordBtn");
+
+    let selectedMessage = null;
+    let mediaRecorder;
+    let audioChunks = [];
+    let isRecording = false;
+    let stopTimeout;
+ // Emoji list rendering
+    const emojiList = [
+  // 🔝 1. Top Most Used
+  "😂", "🤣", "❤️", "😍", "😊", "👍", "🙏", "🔥", "🥰", "😭",
+  "😅", "😘", "😎", "😉", "👏", "🥳", "🙌", "💯", "😢", "😡",
+  "💖", "💜", "🫶", "🤝", "👋", "👌", "💔", "🎉", "🎂", "🎁",
+  "✨", "🌟", "💡", "🎶", "🎵", "🎮", "📱", "💻", "🍕", "🍔",
+  "😇", "😋", "🥹", "🤩", "🤗", "😤", "💬", "📸", "🚩",
+
+  // 😀 2. Smileys & Emotions
+  "😀", "😃", "😄", "😁", "😆", "🙂", "🙃", "😛", "😜", "🤪",
+  "😝", "🤭", "🤫", "🤔", "😏", "🤨", "😐", "😑", "😶", "😒",
+  "🙄", "😬", "😔", "😪", "😴", "🥱", "😥", "😓", "😞", "😣",
+  "😖", "😫", "😩", "😠", "🤬", "☹️", "😷", "🤒", "🤕", "🤢",
+  "🤮", "🤧", "🥵", "🥶", "🥴", "🤯", "😵", "😰", "😨", "😧",
+  "😦", "😱", "😳", "😲", "😯", "😮", "😟", "🙁", "😕", "😌",
+  "🤤", "🤑",
+
+  // 😈 3. Mischievous / Faces
+  "😈", "👿", "🤥", "🤓", "🧐", "🤠", "🤐", "😺", "😸", "😹",
+  "😻", "😽", "😼", "🙀", "😿", "🫣", "🫠", "🫥", "🫡",
+
+  // 💡 4. UI / Reactions / Symbols
+  "💪", "✌️", "💤", "💎", "⚡", "📌", "🛎️", "🔔", "🔕", "⏰",
+  "📣", "🔊", "🔇", "📚", "📖", "✏️", "📝", "📦", "🧭", "🆗",
+  "✅", "❌", "❓", "❗", "✔️", "♻️", "⚠️", "🔁", "🔂", "🔄",
+  "🔃", "⛔", "🚫", "🔞", "➕", "➖", "➗", "✖️", "〽️", "💢",
+  "📍", "🛑", "🆘", "🈲",
+
+  // 🐾 5. Animals & Nature
+  "🐶", "🐱", "🐭", "🐹", "🐰", "🦊", "🐻", "🐼", "🐨", "🐯",
+  "🦁", "🐮", "🐷", "🐸", "🐵", "🦄", "🐔", "🐧", "🦋", "🌞",
+  "🌝", "🌚", "🌈", "🌧️", "🌪️", "❄️", "💧", "☀️", "🌕",
+
+  // 🍽 6. Food & Drink
+  "🍟", "🌭", "🍿", "🥓", "🍗", "🍖", "🥪", "🍝", "🥗", "🍤",
+  "🍩", "🍪", "🍰", "🧁", "🍫", "🍭", "🍬", "🍎", "🍊", "🍌",
+  "🍉", "🍓", "🍇", "🍍", "🥥", "🥭", "🥝", "🧃",
+
+  // ☕ 7. Drinks & Party
+  "🥤", "🧋", "🍺", "🍻", "🍷", "🥂", "🍹", "🍾", "🍵", "☕",
+  "🥃", "🧉", "🍶", "🍸", "🍽️",
+
+  // 🗺️ 8. Activity, Travel & Places
+  "🎧", "🎤", "🎬", "🎨", "🎯", "🎳", "🏀", "⚽", "🏈", "🏓",
+  "🏸", "🎲", "🚗", "🚕", "🚌", "🚎", "🚓", "✈️", "🚀", "🛫",
+  "🛬", "🚢", "🏝️", "🏖️", "⛺", "🗺️", "🗽",
+
+  // 📦 9. Objects
+  "📷", "📞", "🔋", "🔌", "🔦", "🔑", "🗝️", "🪙", "🧱", "🪵",
+  "🪑", "🛏️", "🪞", "🧴", "🧯", "🧼", "🪒", "💳", "🧾", "🪪",
+  "🔐"
+];
+
+    emojiList.forEach(e => {
+      const span = document.createElement("span");
+      span.textContent = e;
+      span.onclick = () => {
+        input.value += e;
+        input.focus();
+      };
+      emojiPanel.appendChild(span);
+    });
+
+    emojiBtn.onclick = () => {
+      emojiPanel.style.display = emojiPanel.style.display === "block" ? "none" : "block";
+    };
+
+    document.addEventListener("click", (e) => {
+      if (!emojiPanel.contains(e.target) && e.target !== emojiBtn) emojiPanel.style.display = "none";
+      if (!contextMenu.contains(e.target)) {
+        contextMenu.style.display = "none";
+        selectedMessage = null;
+      }
+    });
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const msg = input.value.trim();
+      if (msg) {
+        socket.emit("chatMessage", { text: msg });
+        input.value = "";
+        input.focus();
+      }
+    });
+// Record audio and send
+    recordBtn.onclick = async () => {
+      if (!navigator.mediaDevices) return alert("Audio not supported");
+
+      if (!isRecording) {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder.start();
+        audioChunks = [];
+        isRecording = true;
+        recordBtn.textContent = "⏹️ Stop";
+
+        mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+
+        mediaRecorder.onstop = () => {
+          isRecording = false;
+          const blob = new Blob(audioChunks, { type: "audio/webm" });
+          const reader = new FileReader();
+
+          reader.onloadend = () => {
+            socket.emit("audioMessage", {
+              fileData: reader.result,
+              fileName: `voice-${Date.now()}.webm`,
+              fileType: "audio/webm",
+            });
+          };
+
+          reader.readAsDataURL(blob);
+          recordBtn.textContent = "🎤 Record";
+          clearTimeout(stopTimeout);
+        };
+
+        stopTimeout = setTimeout(() => {
+          if (mediaRecorder.state === "recording") mediaRecorder.stop();
+        }, 15000);
+
+      } else {
+        if (mediaRecorder.state === "recording") mediaRecorder.stop();
+      }
+    };
+ // Display audio message
+    socket.on("fileShared", (data) => {
+      const li = document.createElement("li");
+      li.classList.add("chat-message");
+      const isSender = data.user === name;
+      li.innerHTML = `<strong>${isSender ? "You" : data.user}</strong> 🎧 Voice:<br>`;
+
+      const audio = document.createElement("audio");
+      audio.src = data.fileData;
+      audio.controls = true;
+      audio.onloadedmetadata = () => {
+        audio.currentTime = 0;
+      };
+      li.appendChild(audio);
+
+      const time = document.createElement("div");
+      time.className = "timestamp";
+      time.textContent = data.time || "";
+      li.appendChild(time);
+
+      messages.appendChild(li);
+      messages.scrollTop = messages.scrollHeight;
+    });
+
+    // Display text message
+    socket.on("message", (message) => {
+      const li = document.createElement("li");
+      const isSender = message.user === name;
+      li.classList.add("chat-message", isSender ? "sender" : "receiver");
+      li.dataset.messageId = message.id;
+      li.dataset.rawtext = message.text.toLowerCase();
+
+      li.innerHTML = `
+        <div class="msg-header">
+          <span class="user">${message.user}</span>: 
+          <span class="text">${message.text}</span>
+        </div>
+        <div class="timestamp">
+          ${message.time}
+          ${isSender ? `<span class="seen-status" id="seen-${message.id}">[✓</span>` : ""}
+        </div>`;
+
+      if (isSender) {
+        li.addEventListener("contextmenu", (e) => {
+          e.preventDefault();
+          selectedMessage = li;
+          showContextMenu(e.pageX, e.pageY);
+        });
+      } else {
+        socket.emit("seenMessage", message.id);
+      }
+
+      messages.appendChild(li);
+      messages.scrollTop = messages.scrollHeight;
+    });
+
+  // Mark as seen
+    socket.on("messageSeen", (messageId) => {
+      const seenSpan = document.getElementById(`seen-${messageId}`);
+      if (seenSpan) seenSpan.innerText = "[✓✓";
+    });
+ // Search messages
+    searchBtn.addEventListener("click", () => {
+      const term = searchInput.value.trim().toLowerCase();
+      if (!term) return;
+      const allMessages = [...document.querySelectorAll("li.chat-message")];
+      const found = allMessages.find(msg => msg.dataset.rawtext?.includes(term));
+      if (found) {
+        found.scrollIntoView({ behavior: "smooth", block: "center" });
+        found.style.backgroundColor = "#ffff99";
+        setTimeout(() => (found.style.backgroundColor = ""), 2000);
+      } else {
+        alert("No message found.");
+      }
+    });
+   // Clear chat
+    clearButton.addEventListener("click", () => {
+      messages.innerHTML = "";
+    });
+
+    // Show right-click menu
+    function showContextMenu(x, y) {
+      contextMenu.style.left = `${x}px`;
+      contextMenu.style.top = `${y}px`;
+      contextMenu.style.display = "block";
+    }
+  // Edit selected message
+    document.getElementById("editBtn").onclick = () => {
+      if (selectedMessage) {
+        const currentText = selectedMessage.querySelector(".text").innerText;
+        const newText = prompt("Edit your message:", currentText);
+        if (newText !== null) {
+          selectedMessage.querySelector(".text").innerText = newText;
+          selectedMessage.dataset.rawtext = newText.toLowerCase();
+        }
+        contextMenu.style.display = "none";
+      }
+    };
+ // Delete selected message
+    document.getElementById("deleteBtn").onclick = () => {
+      if (selectedMessage) {
+        selectedMessage.remove();
+        contextMenu.style.display = "none";
+      }
+    };
+ // pin  selected message
+    document.getElementById("pinBtn").onclick = () => {
+      if (selectedMessage) {
+        const pinnedText = selectedMessage.querySelector(".msg-header").innerText;
+        pinnedMessage.innerHTML = `📌 <strong>Pinned:</strong> ${pinnedText}`;
+        pinnedMessage.style.display = "block";
+        contextMenu.style.display = "none";
+      }
+    };
+    // Typing indicator logic
+    let typingTimeout;
+    input.addEventListener("input", () => {
+      socket.emit("typing", true);
+      clearTimeout(typingTimeout);
+      typingTimeout = setTimeout(() => {
+        socket.emit("typing", false);
+      }, 60000);
+    });
+// Display typing text
+    socket.on("typing", (text) => {
+      typing.innerText = text || "";
+    });
+  </script>
+</body>
+</html>

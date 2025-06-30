@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Room Chat</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="chat-container">
+
+    <!-- Sidebar to show users -->
+    <aside class="sidebar">
+      <h3>👥 Users List</h3>
+      <ul id="user-list"></ul>
+    </aside>
+
+    <!-- Main chat area -->
+    <div class="chat-main">
+      <h2 id="room-name">Room Chat</h2>
+
+      <!-- Search messages -->
+      <div style="margin: 10px 0; display: flex; gap: 5px; align-items: center;">
+        <input id="searchInput" type="text" placeholder="🔍 Search messages..." style="padding: 5px; width: 200px;" />
+        <button id="emoji-btn-search" type="button">😊</button>
+        <button id="searchButton" type="button">Search</button>
+      </div>
+
+      <!-- Messages will appear here -->
+      <ul id="messages"></ul>
+
+      <!-- Show typing status -->
+      <p id="typing"></p>
+
+      <!-- Message input form -->
+      <form id="chatForm">
+        <div class="input-bar">
+
+          <!-- Text input -->
+          <div class="input-group">
+            <input id="msg" type="text" placeholder="Your message..." autocomplete="off" required />
+          </div>
+
+          <!-- Emoji button and panel -->
+          <div style="position: relative;">
+            <button id="emoji-btn" type="button">😊</button>
+            <div id="emoji-panel"
+              style="display: none; position: absolute; bottom: 40px; background: #fff; border: 1px solid #ccc; padding: 5px; border-radius: 5px; max-height: 150px; overflow-y: auto; z-index: 999; width: 250px;">
+              <!-- Emoji options will be added here -->
+            </div>
+          </div>
+
+          <!-- Upload file -->
+          <label class="file-upload" title="Upload File">
+            📁 Upload
+            <input type="file" id="fileInput" hidden />
+          </label>
+          <progress id="uploadProgress" value="0" max="100" style="display: none;"></progress>
+
+          <!-- Send and record buttons -->
+          <button type="submit">Send</button>
+          <button type="button" id="record-audio">🎤</button>
+
+          <!-- Webcam preview and snapshot (optional) -->
+          <video id="webcam" autoplay playsinline style="display:none; width:200px;"></video>
+          <canvas id="snapshot" style="display:none;"></canvas>
+
+          <!-- Clear all messages -->
+          <button type="button" id="clearChat" class="clear-btn">🧹 Clear Chat</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Pinned messages will show here -->
+  <div id="pinned-messages"></div>
+
+  <!-- Edit message popup -->
+  <div id="editModal" style="display:none; position:fixed; top:30%; left:50%; transform:translate(-50%, -50%); background:#fff; padding:20px; border:1px solid #ccc; z-index:1000;">
+    <h4>Edit Message</h4>
+    <input type="text" id="editMessageInput" style="width:100%; padding:8px; margin-bottom:10px;">
+    <button id="saveEditBtn">Save</button>
+    <button id="cancelEditBtn">Cancel</button>
+  </div>
+
+  <!-- Scripts for socket and chat functionality -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="chat.js"></script>
+</body>
+</html>

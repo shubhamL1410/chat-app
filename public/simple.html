@@ -1,0 +1,47 @@
+<!-- public/simple.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Join Room Chat</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Link to external CSS file for styling -->
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Main container for the join form -->
+  <div class="join-container">
+    <h2>Join Chat Room</h2>
+
+    <!-- Form to input name and room -->
+    <form id="joinForm">
+      <!-- Input for user's name -->
+      <input type="text" id="name" placeholder="Enter your name" required />
+      <!-- Input for room name -->
+      <input type="text" id="room" placeholder="Enter room name" required />
+      <!-- Submit button to join the room -->
+      <button type="submit">Join Room</button>
+    </form>
+  </div>
+
+  <!-- JavaScript to handle form submission -->
+  <script>
+    // When the join form is submitted
+    document.getElementById("joinForm").addEventListener("submit", function (e) {
+      e.preventDefault(); // Prevent default form submission behavior
+
+      // Get trimmed values from input fields
+      const name = document.getElementById("name").value.trim();
+      const room = document.getElementById("room").value.trim();
+
+      // If both name and room are provided
+      if (name && room) {
+        // Redirect to chat page with name and room as URL parameters
+        window.location.href = `chat.html?name=${encodeURIComponent(name)}&room=${encodeURIComponent(room)}`;
+      }
+    });
+  </script>
+  
+</body>
+</html>
